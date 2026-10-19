@@ -1,0 +1,1023 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DMX ステージコントローラ</title>
+<style>
+:root{
+  --bg:#14161c; --panel:#1f232c; --line:#323846; --text:#e8ebf2; --sub:#9aa3b5;
+  --accent:#4fb3ff; --ok:#3ccf7a; --warn:#ffb340; --ng:#ff5a5a;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:"BIZ UDPGothic","Yu Gothic UI","Meiryo",sans-serif;font-size:15px}
+header{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line);background:#181b22;position:sticky;top:0;z-index:5}
+h1{font-size:18px;margin:0 12px 0 0}
+.status{display:flex;align-items:center;gap:6px;color:var(--sub);font-size:13px}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--ng)}
+.dot.on{background:var(--ok)}
+.view{display:grid;grid-template-columns:minmax(300px,440px) 1fr;gap:16px;padding:16px;max-width:1300px;margin:0 auto}
+@media (max-width:860px){.view{grid-template-columns:1fr}}
+.view[hidden]{display:none}
+.modeBar{max-width:1300px;margin:0 auto;padding:10px 16px 0;color:var(--sub);font-size:13px}
+.modeBar b{color:var(--ok)}
+.modeBar.set b{color:var(--warn)}
+section{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:16px}
+h2{font-size:15px;margin:0 0 10px;color:var(--sub);font-weight:600}
+button{font:inherit;color:var(--text);background:#2b3140;border:1px solid var(--line);border-radius:8px;padding:8px 14px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);color:#06121e;border:none;font-weight:700}
+button.danger{background:var(--ng);color:#fff;border:none;font-weight:700}
+button.danger.active{background:#fff;color:var(--ng);animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:.6}}
+button.on{border-color:var(--accent);background:#1d3a55}
+button.small{padding:4px 9px;font-size:13px}
+button:disabled{opacity:.45;cursor:default}
+kbd{display:inline-block;min-width:18px;padding:0 4px;margin-left:5px;border:1px solid #556;border-bottom-width:2px;border-radius:4px;font:11px/16px Consolas,monospace;color:var(--sub);background:#12151b;text-align:center}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+label{color:var(--sub);font-size:13px}
+input[type=number],input[type=text],select{font:inherit;background:#12151b;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:5px 8px}
+input[type=number]{width:70px}
+.swatches{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:12px}
+.swatches button{height:42px;padding:0;border-radius:8px;border:2px solid transparent;position:relative}
+.swatches button:hover{border-color:#fff}
+.swatches kbd{position:absolute;right:3px;bottom:3px;margin:0;opacity:.85}
+.slider{display:grid;grid-template-columns:118px 1fr 42px;gap:8px;align-items:center;margin:6px 0}
+.slider[hidden]{display:none}
+.slider span:first-child{font-size:13px}
+.slider span:last-child{text-align:right;font-variant-numeric:tabular-nums;color:var(--sub)}
+input[type=range]{width:100%}
+/* ステージ */
+.stage{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;align-items:end}
+.fx{background:#171a21;border:2px solid var(--line);border-radius:10px;padding:8px;text-align:center;cursor:pointer;user-select:none}
+.fx.sel{border-color:var(--accent)}
+.fx.off{opacity:.45}
+.lamp{width:56px;height:56px;border-radius:50%;margin:4px auto 6px;border:2px solid #0006;transition:background .05s}
+.fx .nm{font-size:13px}
+.fx .ad{font-size:11px;color:var(--sub)}
+.derbyRow{grid-column:1/-1;display:flex;justify-content:center}
+.derbyRow .fx{width:50%;min-width:160px;cursor:default}
+.derbyRow .lamp{border-radius:12px;width:90px}
+/* 演出パッド */
+.view > .wide{grid-column:1/-1;margin-bottom:0}
+.pads{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:12px}
+.pad{position:relative;min-height:80px;border:none;border-radius:12px;padding:10px 12px;text-align:left;color:#fff;font-weight:800;font-size:17px;text-shadow:0 1px 3px #000c;box-shadow:inset 0 0 0 2px #fff2;transition:transform .06s}
+.pad:hover{border:none;filter:brightness(1.12)}
+.pad small{display:block;font-weight:400;font-size:12px;margin-top:4px}
+.pad kbd{position:absolute;right:8px;top:8px;margin:0;font-size:13px;line-height:20px;min-width:24px;color:#fff;background:#000a;border-color:#fff8}
+.pad:active{transform:scale(.96)}
+.pad.on{box-shadow:0 0 0 3px #fff,0 0 20px 4px #fffa}
+.padOpts{align-items:stretch;gap:14px}
+.don{background:#fff;color:#111;font-weight:800;font-size:17px;padding:12px 20px;border:none;border-radius:12px;user-select:none;touch-action:none}
+.don:hover{border:none}
+.don.active{box-shadow:0 0 28px 8px #fffd;transform:scale(.97)}
+.speedBox{flex:1;min-width:260px;margin:0}
+/* シーンとキュー */
+.scenes{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-bottom:10px}
+.scenes button{text-align:left;min-height:52px;line-height:1.3}
+.scenes button.cur{border-color:var(--ok);background:#173a2a}
+.scenes small{display:block;color:var(--sub);font-size:11px}
+.goBox{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:stretch;margin-bottom:10px}
+.goBtn{font-size:22px;font-weight:800;background:var(--ok);color:#062014;border:none;border-radius:10px;padding:14px 22px}
+.cueNow{background:#171a21;border:1px solid var(--line);border-radius:10px;padding:10px;font-size:13px;color:var(--sub);line-height:1.7}
+.cueNow b{color:var(--text);font-size:16px}
+.cueList{list-style:none;margin:0;padding:0;max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:8px}
+.cueList li{padding:6px 10px;border-bottom:1px solid var(--line);font-size:13.5px;display:flex;gap:8px;cursor:pointer}
+.cueList li:last-child{border-bottom:none}
+.cueList li.cur{background:#173a2a}
+.cueList li.next{background:#22283a}
+.cueList .n{color:var(--sub);width:24px;text-align:right}
+.cueList .w{margin-left:auto;color:var(--sub);font-size:12px}
+/* 設定 */
+.fxblock{border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:12px;background:#1a1d25}
+.fxblock h3{font-size:14px;margin:0 0 8px}
+.faders{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:8px}
+.fader{background:#171a21;border:1px solid var(--line);border-radius:8px;padding:6px 4px;text-align:center}
+.fader .ch{font-size:12px;color:var(--sub)}
+.fader .role{font-size:11px;color:var(--accent);min-height:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fader input[type=range]{writing-mode:vertical-lr;direction:rtl;width:28px;height:110px;margin:4px auto;display:block}
+.fader .val{font-variant-numeric:tabular-nums;font-size:13px}
+.fader select{width:100%;font-size:11px;padding:2px}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{border:1px solid var(--line);padding:6px 8px;text-align:left}
+th{color:var(--sub);font-weight:600;background:#1a1d25}
+td.num{font-variant-numeric:tabular-nums}
+td input[type=text]{width:100%}
+.note{font-size:12.5px;color:var(--sub);line-height:1.6}
+.note b{color:var(--text)}
+.err{color:var(--ng)}
+.warn{color:var(--warn)}
+/* キー一覧 */
+#keyHelp{position:fixed;inset:0;background:#000a;display:flex;align-items:center;justify-content:center;z-index:20;padding:16px}
+#keyHelp[hidden]{display:none}
+#keyHelp .box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 22px;max-width:640px;width:100%;max-height:90vh;overflow:auto}
+#keyHelp table td:first-child{white-space:nowrap;width:40%}
+</style>
+</head>
+<body>
+<header>
+  <h1>DMX ステージコントローラ</h1>
+  <button id="btnConnect" class="primary">USBトランスミッターに接続</button>
+  <button id="btnDisconnect" disabled>切断</button>
+  <div class="status"><div id="dot" class="dot"></div><span id="statusText">未接続（画面の色だけ動きます）</span></div>
+  <div style="flex:1"></div>
+  <button id="btnKeys">キー一覧<kbd>?</kbd></button>
+  <button id="btnSettings">設定を開く</button>
+  <button id="btnBlackout" class="danger">ブラックアウト<kbd>Space</kbd></button>
+</header>
+<div class="modeBar" id="modeBar"></div>
+
+<!-- ===== 操作パネル ===== -->
+<main class="view" id="opView">
+  <section class="wide">
+    <h2>演出パッド（押すだけで光る！ 4台まとめて動きます）</h2>
+    <div class="pads" id="pads"></div>
+    <div class="row padOpts">
+      <button id="btnDon" class="don">ドーン！（押している間 全部まっ白）<kbd>L</kbd></button>
+      <div class="slider speedBox"><span>はやさ<kbd>←→</kbd></span><input type="range" id="speed" min="0.2" max="8" step="0.1" value="2"><span id="speedVal">2</span></div>
+    </div>
+  </section>
+
+  <div>
+    <section>
+      <h2>ステージ（パーライトはクリックで選ぶ）</h2>
+      <div class="stage" id="stage"></div>
+      <div class="row" style="margin-top:10px">
+        <button data-pick="all">全部<kbd>A</kbd></button>
+        <button data-pick="odd">1・3</button>
+        <button data-pick="even">2・4</button>
+        <button data-pick="none">選択解除</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>選んだパーライトの色と明るさ</h2>
+      <div class="swatches" id="swatches"></div>
+      <div class="row"><label>好きな色</label><input type="color" id="picker" value="#ffffff"></div>
+      <div class="slider"><span>明るさ<kbd>↑↓</kbd></span><input type="range" id="master" min="0" max="255" value="255"><span id="masterVal">255</span></div>
+      <div class="slider"><span>ストロボ</span><input type="range" id="strobe" min="0" max="255" value="0"><span id="strobeVal">0</span></div>
+      <div class="row" style="margin-top:12px">
+        <button id="btnFadeIn">ゆっくり点灯<kbd>F</kbd></button>
+        <button id="btnFadeOut">ゆっくり消灯<kbd>G</kbd></button>
+        <label>秒数</label><input type="number" id="fadeSec" min="0.5" max="30" step="0.5" value="3">
+      </div>
+      <p class="note"><b>S</b> を押している間だけストロボが光ります。</p>
+    </section>
+
+    <section>
+      <h2>ダービーライト</h2>
+      <div class="row">
+        <button id="btnDerby">点灯中</button>
+        <button id="btnDerbyZero">全部0</button>
+      </div>
+      <div id="derbySliders"></div>
+      <p class="note">ダービーは機種によってchの意味がまったく違います。いまの割り当ては<b>よくある並びの例</b>です。「設定を開く」で、実機に合わせて役割を直してください。</p>
+    </section>
+  </div>
+
+  <div>
+    <section>
+      <h2>プログラム（キュー）の再生</h2>
+      <div class="goBox">
+        <div class="cueNow" id="cueNow"></div>
+        <button class="goBtn" id="btnGo">GO<kbd>Enter</kbd></button>
+      </div>
+      <div class="row">
+        <button id="btnBack">1つ戻る<kbd>BS</kbd></button>
+        <button id="btnCueReset">最初に戻す<kbd>Home</kbd></button>
+        <label><input type="checkbox" id="loop"> 最後まで行ったら最初に戻る</label>
+      </div>
+      <ul class="cueList" id="cueList"></ul>
+      <p class="note">行をクリックすると、そのキューへ飛びます。キューの並びは「設定を開く」→「プログラム」で作ります。</p>
+    </section>
+
+    <section>
+      <h2>シーン（押すと切り替わる）</h2>
+      <div class="scenes" id="sceneBtns"></div>
+      <div class="row">
+        <button id="btnSaveScene" class="primary">今の光り方をシーンに保存</button>
+        <label>切り替えの秒数</label><input type="number" id="newFade" min="0" max="30" step="0.5" value="2">
+      </div>
+      <p class="note">先頭の10個は数字キー <b>1〜9・0</b> で呼び出せます。名前・秒数の変更、並べ替え、削除は「設定を開く」で行います。</p>
+    </section>
+  </div>
+</main>
+
+<!-- ===== 設定パネル ===== -->
+<main class="view" id="setView" hidden>
+  <div>
+    <section>
+      <h2>ch振り分け表（ライト本体のアドレスをこの通りに設定）</h2>
+      <table id="addrTable"></table>
+      <p id="addrWarn" class="note warn"></p>
+      <p class="note">本体の表示は機種により <b>A001</b>・<b>d001</b>・<b>001</b> などと出ます。本体を<b>DMXモード</b>（オート・サウンド・マスター/スレーブではない）にしてください。<br>
+      つなぐ順番は自由です。最後のライトのDMX OUTにターミネーター（120Ω）を挿すと信号が安定します。</p>
+    </section>
+
+    <section>
+      <h2>シーンの管理</h2>
+      <table id="sceneTable"></table>
+      <p class="note">「上書き」は今の光り方でそのシーンを保存し直します。上から10個が数字キー1〜9・0に入ります。</p>
+    </section>
+
+    <section>
+      <h2>プログラム（キューの並び）</h2>
+      <table id="cueTable"></table>
+      <div class="row" style="margin-top:10px"><button id="btnAddCue">キューを追加</button></div>
+      <p class="note"><b>次へ</b>が「手動」のキューはGO（Enter）を押すまで待ちます。秒数を入れると、そのキューが始まってから指定秒後に次へ自動で進みます（切り替えの秒数も含みます）。</p>
+    </section>
+
+    <section>
+      <h2>バックアップ</h2>
+      <div class="row">
+        <button id="btnExport">設定を書き出す（ファイル）</button>
+        <button id="btnImport">ファイルから読み込む</button>
+        <input type="file" id="importFile" accept=".json,application/json" hidden>
+      </div>
+      <p class="note">アドレス・役割・シーン・プログラムを1つのファイルにまとめます。本番用PCへ移すときや、予備として使ってください。</p>
+    </section>
+  </div>
+
+  <div>
+    <section>
+      <h2>ライトの設定とチャンネル（直接操作）</h2>
+      <div id="fxSetup"></div>
+      <div class="row">
+        <button id="btnZero">全部0にする</button>
+        <button id="btnReset">ライトの設定を最初に戻す</button>
+      </div>
+      <p class="note">
+        <b>役割がわからないとき：</b>「全部0にする」を押し、フェーダーを1本ずつ上げると、どのchが何をするかわかります（色の操作をすると役割どおりの値に上書きされます）。<br>
+        ダービーは機種によってchの意味がまったく違います。<b>取扱説明書のDMX表</b>に合わせてください。「モード」が0付近でないとオート・音声モードになる機種が多いです。<br>
+        設定はこのPCのブラウザに保存されます。使えるブラウザ：<b>Chrome または Edge</b>。接続ボタンの一覧から <b>「USB Serial Port (COMxx)」</b>（FTDI）を選んでください。本番中はこのタブを前面に置いてください。
+      </p>
+      <p id="errBox" class="note err"></p>
+    </section>
+  </div>
+</main>
+
+<div id="keyHelp" hidden><div class="box">
+  <h2>キーボード操作（設定を閉じているときに使えます）</h2>
+  <table>
+    <tr><td><kbd>Enter</kbd></td><td>GO（次のキューへ）</td></tr>
+    <tr><td><kbd>BS</kbd> / <kbd>Home</kbd></td><td>1つ戻る / 最初に戻す</td></tr>
+    <tr><td><kbd>1</kbd>〜<kbd>9</kbd> <kbd>0</kbd></td><td>シーン1〜10を呼び出す</td></tr>
+    <tr><td><kbd>Space</kbd></td><td>ブラックアウト（もう一度で戻る）</td></tr>
+    <tr><td><kbd>Shift</kbd>＋<kbd>1</kbd>〜<kbd>4</kbd></td><td>パー1〜4を選ぶ／外す</td></tr>
+    <tr><td><kbd>A</kbd></td><td>パーを全部選ぶ（全部選んでいれば解除）</td></tr>
+    <tr><td><kbd>Q</kbd>〜<kbd>P</kbd></td><td>選んだパーの色（色ボタンの右下の文字）</td></tr>
+    <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>選んだパーの明るさ ±</td></tr>
+    <tr><td><kbd>F</kbd> / <kbd>G</kbd></td><td>ゆっくり点灯 / ゆっくり消灯</td></tr>
+    <tr><td><kbd>S</kbd>（押している間）</td><td>ストロボ</td></tr>
+    <tr><td><kbd>Z</kbd> <kbd>X</kbd> <kbd>C</kbd> <kbd>V</kbd> <kbd>B</kbd> <kbd>N</kbd> <kbd>M</kbd> <kbd>,</kbd> <kbd>.</kbd><br><kbd>H</kbd> <kbd>J</kbd> <kbd>K</kbd></td><td>演出パッド（ボタンの右上の文字）。Z で止める</td></tr>
+    <tr><td><kbd>L</kbd>（押している間）</td><td>ドーン！（全部まっ白）</td></tr>
+    <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>演出のはやさ −／＋</td></tr>
+    <tr><td><kbd>D</kbd></td><td>ダービーの点灯／消灯</td></tr>
+    <tr><td><kbd>?</kbd> / <kbd>Esc</kbd></td><td>この一覧を開く / 閉じる</td></tr>
+  </table>
+  <div class="row" style="margin-top:12px;justify-content:flex-end"><button id="btnKeysClose">閉じる<kbd>Esc</kbd></button></div>
+</div></div>
+
+<script>
+const ROLES = {
+  none:'なし', dimmer:'調光', red:'赤', green:'緑', blue:'青', white:'白',
+  amber:'アンバー', uv:'UV', strobe:'ストロボ', mode:'モード', speed:'速さ',
+  color:'色(切替)', rotate:'回転', pattern:'模様'
+};
+// シーンを切り替えるとき、なめらかに変えてよい役割（それ以外は切り替えの最初に一気に変える）
+const FADE_ROLES = ['dimmer','red','green','blue','white','amber','uv'];
+const PAR_PRESETS = {
+  'd-rgb-s-m-sp':['7ch：調光 / 赤 / 緑 / 青 / ストロボ / モード / 速さ', ['dimmer','red','green','blue','strobe','mode','speed']],
+  'rgb':['3ch：赤 / 緑 / 青', ['red','green','blue']],
+  'rgbw':['4ch：赤 / 緑 / 青 / 白', ['red','green','blue','white']],
+  'd-rgbw-s':['6ch：調光 / 赤 / 緑 / 青 / 白 / ストロボ', ['dimmer','red','green','blue','white','strobe']],
+  'd-rgbw-s-m-sp':['8ch：調光 / 赤 / 緑 / 青 / 白 / ストロボ / モード / 速さ', ['dimmer','red','green','blue','white','strobe','mode','speed']],
+};
+// ダービーは機種差が大きいので「よくある並びの例」。説明書に合わせて直す前提
+const DERBY_PRESETS = {
+  'm-c-s-r-d-sp':['6ch例：モード / 色 / ストロボ / 回転 / 調光 / 速さ', ['mode','color','strobe','rotate','dimmer','speed']],
+  'd-rgbw-s-r':['7ch例：調光 / 赤 / 緑 / 青 / 白 / ストロボ / 回転', ['dimmer','red','green','blue','white','strobe','rotate']],
+  'c-s-r':['3ch例：色 / ストロボ / 回転', ['color','strobe','rotate']],
+};
+const SWATCHES = ['#ff0000','#ff6a00','#ffd000','#00ff00','#00ffd0','#00a0ff','#0000ff','#a000ff','#ff00a0','#ffffff'];
+const SWATCH_KEYS = ['Q','W','E','R','T','Y','U','I','O','P'];
+// 演出で使う派手な色（白は入れない）。色が変わる演出はこの順に回る
+const PAL = ['#ff0000','#ffd000','#00ff00','#00a0ff','#a000ff','#ff00a0'];
+// 演出パッド。speed は押したときの「はやさ」（1秒に何歩進むか）
+const PADS = [
+  { id:'none',    name:'止める',         sub:'動きを止めて元の色に',   key:'KeyZ',   label:'Z', speed:null, bg:'#3a4050' },
+  { id:'rtl',     name:'右から左へ',     sub:'1周ごとに色が変わる',     key:'KeyX',   label:'X', speed:3,   bg:'linear-gradient(270deg,#ff0000,#ffd000 50%,#00a0ff)' },
+  { id:'ltr',     name:'左から右へ',     sub:'1周ごとに色が変わる',     key:'KeyC',   label:'C', speed:3,   bg:'linear-gradient(90deg,#00a0ff,#00ff00 50%,#ffd000)' },
+  { id:'bounce',  name:'行ったり来たり', sub:'端で折り返す',           key:'KeyV',   label:'V', speed:4,   bg:'linear-gradient(90deg,#a000ff,#ff00a0,#a000ff)' },
+  { id:'outin',   name:'外と内',         sub:'外側と内側がこうたい',   key:'KeyB',   label:'B', speed:2,   bg:'linear-gradient(90deg,#00ff00,#003a10 35%,#003a10 65%,#00ff00)' },
+  { id:'rainbow', name:'虹が流れる',     sub:'4台に虹がかかる',         key:'KeyN',   label:'N', speed:1.5, bg:'linear-gradient(90deg,#ff0000,#ffd000,#00ff00,#00a0ff,#a000ff)' },
+  { id:'flash',   name:'全部ピカピカ',   sub:'光るたびに色が変わる',   key:'KeyM',   label:'M', speed:2,   bg:'linear-gradient(135deg,#ff00a0,#ffd000)' },
+  { id:'sparkle', name:'キラキラ',       sub:'ばらばらに光る',         key:'Comma',  label:',', speed:5,   bg:'radial-gradient(circle at 72% 72%,#fff 0 5%,transparent 7%),radial-gradient(circle at 88% 45%,#ffd000 0 5%,transparent 7%),radial-gradient(circle at 60% 40%,#ff00a0 0 3%,transparent 5%),#2a1660' },
+  { id:'police',  name:'パトカー',       sub:'赤と青がチカチカ',       key:'Period', label:'.', speed:1.5, bg:'linear-gradient(90deg,#e00000 50%,#0030ff 50%)' },
+  { id:'fire',    name:'炎',             sub:'ゆらゆら燃える',         key:'KeyH',   label:'H', speed:1,   bg:'linear-gradient(0deg,#ff2000,#ff8000 60%,#ffd000)' },
+  { id:'heart',   name:'ドキドキ',       sub:'心臓の鼓動',             key:'KeyJ',   label:'J', speed:1.2, bg:'radial-gradient(circle,#ff3050,#600010)' },
+  { id:'breathe', name:'ふわっと',       sub:'今の色のまま息をする',   key:'KeyK',   label:'K', speed:0.5, bg:'linear-gradient(135deg,#0a3a8a,#3aa0ff)' },
+];
+// 前の版のシーンに残っている動き（パッドには出さないが、呼び出せば動く）
+const LEGACY_EFFECTS = { chase:'順番に', alt:'交互に', random:'ランダム' };
+const EFFECTS = Object.fromEntries([...PADS.map(p => [p.id, p.name]), ...Object.entries(LEGACY_EFFECTS)]);
+
+// DMXユニバース（index 0 = スタートコード、1〜512 = チャンネル）
+const frame = new Uint8Array(513);
+const zeroFrame = new Uint8Array(513);
+const $ = id => document.getElementById(id);
+
+function defaultFixtures(){
+  const par = (n, start) => ({ type:'par', name:'パー'+n, start, roles:PAR_PRESETS['d-rgb-s-m-sp'][1].slice(),
+    color:'#ffffff', master:255, strobe:0, on:true, sel:true });
+  return [ par(1,1), par(2,11), par(3,21), par(4,31), defaultDerby(41) ];
+}
+function defaultDerby(start){
+  const roles = DERBY_PRESETS['m-c-s-r-d-sp'][1].slice();
+  return { type:'derby', name:'ダービー', start, roles, vals:roles.map(()=>0), on:true };
+}
+// 見本のシーン：[名前, 切り替え秒, パーの色と明るさ（足りない分はくり返す）, 演出, はやさ]
+const WHITE_FULL = ['#ffffff',255];
+const SAMPLE_BASIC = [
+  ['開演前（暖色うすく）',3,[['#ff6a00',70]]],
+  ['全体明るく（白）',2,[WHITE_FULL]],
+  ['バラード（青ふわっと）',4,[['#0000ff',200],['#00a0ff',200]],'breathe',0.5],
+  ['アップテンポ（虹）',0.5,[['#ff0000',255],['#00ff00',255],['#0000ff',255],['#ff00a0',255]],'rainbow',1.5],
+  ['暗転',2,[['#ffffff',0]]],
+];
+const SAMPLE_SHOW = [
+  ['オープニング（右から左へ）',1,[WHITE_FULL],'rtl',3],
+  ['サビ（虹が流れる）',0.5,[WHITE_FULL],'rainbow',2],
+  ['ノリノリ（全部ピカピカ）',0,[WHITE_FULL],'flash',2],
+  ['キラキラ',0.5,[WHITE_FULL],'sparkle',5],
+  ['パトカー',0,[WHITE_FULL],'police',1.5],
+  ['炎',1,[WHITE_FULL],'fire',1],
+  ['ドキドキ',0.5,[WHITE_FULL],'heart',1.2],
+  ['行ったり来たり',0.5,[WHITE_FULL],'bounce',4],
+  ['エンディング（金色ふわっと）',4,[['#ffd000',220]],'breathe',0.4],
+];
+function sampleScenes(fixtures, firstId, list){
+  return list.map(([name, fade, pc, effect='none', speed=2], j) => {
+    let pi = 0;
+    return { id:firstId + j, name, fade, snap:{ effect, speed, fx: fixtures.map(f => {
+      if(f.type === 'par'){ const [color, master] = pc[pi++ % pc.length]; return { color, master, strobe:0, on:true, vals:null }; }
+      return { on:false, vals:f.roles.map(()=>0) };   // ダービーは実機の割り当てがわかるまで消灯
+    }) } };
+  });
+}
+function defaults(){
+  const f = defaultFixtures();
+  return { fixtures:f, effect:'none', speed:2,
+    scenes:[...sampleScenes(f, 1, SAMPLE_BASIC), ...sampleScenes(f, 6, SAMPLE_SHOW)],
+    cues:[1,2,3,4,5].map(id => ({ scene:id, wait:0 })), loop:false, nextId:6 + SAMPLE_SHOW.length, ver:4 };
+}
+function load(){ try{ return JSON.parse(localStorage.getItem('dmxStage')); }catch(e){ return null; } }
+function save(){ try{ localStorage.setItem('dmxStage', JSON.stringify(state)); }catch(e){} }
+function migrate(s){   // 前の版の保存データにシーン・プログラムを足す
+  const d = defaults();
+  if((s.ver || 1) < 3 && Array.isArray(s.fixtures)){
+    const di = s.fixtures.findIndex(f => f.type==='derby');
+    if(di >= 0 && s.ver === 2){
+      const old = s.fixtures[di];
+      s.fixtures[di] = { ...defaultDerby(old.start), on:old.on };
+      for(const sc of s.scenes || []) sc.snap.fx[di] = { on:false, vals:s.fixtures[di].roles.map(()=>0) };
+    }
+    s.ver = 3;
+  }
+  if(s.ver < 4 && Array.isArray(s.fixtures)){   // 3版まで：演出パッドの見本シーンを後ろに足す（同じ名前があれば足さない）
+    const have = new Set((s.scenes || []).map(x => x.name));
+    const add = SAMPLE_SHOW.filter(x => !have.has(x[0]));
+    const id0 = s.nextId || 100;
+    s.scenes = [...(s.scenes || []), ...sampleScenes(s.fixtures, id0, add)];
+    s.nextId = id0 + add.length;
+    s.ver = 4;
+  }
+  for(const k of Object.keys(d)) if(s[k] === undefined) s[k] = d[k];
+  return s;
+}
+let state = migrate(load() || defaults());
+let blackout = false, settingsOpen = false, flashHold = false;
+const els = new Map();   // ライト → ステージ上の表示要素（保存しない）
+const pars = () => state.fixtures.filter(f => f.type==='par');
+const derby = () => state.fixtures.find(f => f.type==='derby');
+const selPars = () => pars().filter(f => f.sel);
+const sceneById = id => state.scenes.find(s => s.id === id);
+
+// ---------- 色の計算 ----------
+function hexToRgb(h){ const n = parseInt(h.slice(1),16); return [n>>16&255, n>>8&255, n&255]; }
+function rgbHex(c){ return '#'+c.map(v=>Math.round(v).toString(16).padStart(2,'0')).join(''); }
+function hsvHex(h){ const f = n => { const k=(n+h/60)%6; return 255*(1-Math.max(0,Math.min(k,4-k,1))); };
+  return rgbHex([f(5),f(3),f(1)]); }
+function lerpHex(a, b, t){ const x = hexToRgb(a), y = hexToRgb(b); return rgbHex(x.map((v,i) => v + (y[i]-v)*t)); }
+
+// 演出：パーの番号（左から0,1,2,3）ごとに、明るさの倍率 k と色の上書き color を返す
+function effectFor(i){
+  const t = performance.now()/1000 * state.speed, n = pars().length, step = Math.floor(t), frac = t - step;
+  const pal = j => PAL[((j % PAL.length) + PAL.length) % PAL.length];
+  const hash = (x, y) => { let h = Math.imul(x, 374761393) + Math.imul(y, 668265263) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return (h ^ (h >>> 16)) >>> 0; };
+  switch(state.effect){
+    case 'ltr':    return { k: step % n === i ? 1 : 0, color: pal(Math.floor(step / n)) };
+    case 'rtl':    return { k: n - 1 - step % n === i ? 1 : 0, color: pal(Math.floor(step / n)) };
+    case 'bounce': { const m = Math.max(1, 2*n - 2), st = step % m, pos = st < n ? st : m - st;
+                     return { k: pos === i ? 1 : 0, color: pal(Math.floor(step / Math.max(1, n - 1))) }; }
+    case 'outin':  { const outer = i === 0 || i === n - 1;
+                     return { k: (step % 2 === 0) === outer ? 1 : 0, color: pal(Math.floor(step / 2)) }; }
+    case 'rainbow':return { k:1, color: hsvHex(((t*60 - i*60) % 360 + 360) % 360) };
+    case 'flash':  return { k: frac < 0.5 ? 1 : 0, color: pal(step) };
+    case 'sparkle':{ const h = hash(step, i); return { k: h % 3 === 0 ? 1 : 0, color: pal(h >>> 3) }; }
+    case 'police': { const left = i < n/2, on = (step % 2 === 0) === left && (frac < 0.18 || (frac > 0.3 && frac < 0.48));
+                     return { k: on ? 1 : 0, color: left ? '#ff0000' : '#0030ff' }; }
+    case 'fire':   { const a = 0.5 + 0.25*Math.sin(t*9.1 + i*2.3) + 0.25*Math.sin(t*5.3 + i*1.1);
+                     return { k: 0.45 + 0.55*a, color: hsvHex(5 + 35*a) }; }
+    case 'heart':  { const p = x => x >= 0 ? Math.exp(-x*14) : 0;
+                     return { k: Math.max(p(frac), 0.7*p(frac - 0.28)), color:'#ff0030' }; }
+    case 'breathe':return { k: 0.5 - 0.5*Math.cos(2*Math.PI*t/2) };
+    case 'chase':  return { k: step % n === i ? 1 : 0 };
+    case 'alt':    return { k: step % 2 === i % 2 ? 1 : 0 };
+    case 'random': return { k:1, color: SWATCHES[(step*7 + i*13 + ((step*i)%5)) % SWATCHES.length] };
+    default:       return { k:1 };
+  }
+}
+
+// 状態からDMXの値を作る（役割「なし」のchは触らない＝手動の値が残る）
+function compute(){
+  let pi = 0;
+  for(const fx of state.fixtures){
+    const roles = fx.roles;
+    if(fx.type === 'par'){
+      const e = flashHold ? { k:1, color:'#ffffff' } : effectFor(pi);
+      pi++;
+      const on = fx.on || flashHold;
+      let [r,g,b] = hexToRgb(e.color || fx.color);
+      const hasDimmer = roles.includes('dimmer'), hasWhite = roles.includes('white');
+      let w = 0;
+      if(hasWhite){ w = Math.min(r,g,b); r-=w; g-=w; b-=w; }   // 白成分は白LEDへ
+      const dim = flashHold ? 255 : fx.master * e.k;
+      const k = hasDimmer ? 1 : dim/255;                       // 調光chがなければRGBに掛ける
+      const vals = { red:r*k, green:g*k, blue:b*k, white:w*k, dimmer:dim, strobe:flashHold ? 0 : fx.strobe, mode:0, speed:0 };
+      roles.forEach((role,i) => {
+        if(on ? role in vals : role !== 'none') frame[fx.start+i] = on ? Math.round(vals[role]) : 0;
+      });
+    }else{
+      roles.forEach((role,i) => { frame[fx.start+i] = fx.on ? Math.round(fx.vals[i]||0) : 0; });
+    }
+  }
+  syncFaders(); updateStage();
+}
+
+
+// ---------- 画面の切り替え（操作 ⇔ 設定） ----------
+function setSettings(open){
+  settingsOpen = open;
+  $('opView').hidden = open; $('setView').hidden = !open;
+  $('btnSettings').textContent = open ? '設定を閉じて操作へ' : '設定を開く';
+  $('btnSettings').classList.toggle('on', open);
+  $('modeBar').className = 'modeBar' + (open ? ' set' : '');
+  $('modeBar').innerHTML = open
+    ? '<b>● 設定中</b>　キーボード操作は止まっています。終わったら「設定を閉じて操作へ」を押してください（Esc でも閉じます）。'
+    : '<b>● 操作中</b>　キーボードで操作できます。キーの一覧は <kbd>?</kbd>';
+  if(open){ buildSetup(); buildTable(); buildSceneTable(); buildCueTable(); }
+  else { buildStage(); buildDerby(); buildSceneBtns(); buildCueList(); loadPanel(); }
+  document.activeElement?.blur();
+}
+$('btnSettings').onclick = () => setSettings(!settingsOpen);
+
+// ---------- 操作パネル ----------
+function getVal(fx, role){ const i = fx.roles.indexOf(role); return i<0 ? null : frame[fx.start+i]; }
+function lampColor(fx){
+  if(blackout) return [0,0,0];
+  const dim = getVal(fx,'dimmer') ?? 255, w = getVal(fx,'white') ?? 0;
+  const c = x => Math.min(255, Math.round(((x ?? 0) + w) * dim/255));
+  if(fx.type==='derby' && getVal(fx,'red')===null){       // 色chがない機種：調光と点灯状態だけ見せる
+    const a = fx.on ? dim/255 : 0;
+    return [Math.round(200*a), Math.round(140*a), Math.round(255*a)];
+  }
+  return [c(getVal(fx,'red')), c(getVal(fx,'green')), c(getVal(fx,'blue'))];
+}
+function buildStage(){
+  const box = $('stage'); box.innerHTML = ''; els.clear();
+  const derbyWrap = document.createElement('div'); derbyWrap.className = 'derbyRow';
+  let pi = 0;
+  state.fixtures.forEach(fx => {
+    const d = document.createElement('div'); d.className = 'fx';
+    const key = fx.type==='par' ? `<kbd>⇧${++pi}</kbd>` : '<kbd>D</kbd>';
+    d.innerHTML = `<div class="lamp"></div><div class="nm">${fx.name}${key}</div><div class="ad"></div>`;
+    if(fx.type==='par'){
+      d.onclick = () => togglePar(fx);
+      box.appendChild(d);
+    }else{ derbyWrap.appendChild(d); }
+    els.set(fx, d);
+  });
+  box.appendChild(derbyWrap);
+  updateStage();
+}
+function updateStage(){
+  state.fixtures.forEach(fx => {
+    const el = els.get(fx); if(!el) return;
+    const [r,g,b] = lampColor(fx);
+    const lamp = el.querySelector('.lamp');
+    lamp.style.background = `rgb(${r},${g},${b})`;
+    lamp.style.boxShadow = `0 0 ${Math.round((r+g+b)/20)}px rgb(${r},${g},${b})`;
+    el.classList.toggle('sel', fx.type==='par' && fx.sel);
+    el.classList.toggle('off', !fx.on);
+    el.querySelector('.ad').textContent = `ch ${fx.start}〜${fx.start+fx.roles.length-1}` + ((getVal(fx,'strobe')||0)>0 ? '・ストロボ' : '');
+  });
+}
+function togglePar(fx){ fx.sel = !fx.sel; save(); updateStage(); loadPanel(); }
+function pick(m){
+  pars().forEach((f,i) => f.sel = m==='all' || (m==='odd' && i%2===0) || (m==='even' && i%2===1));
+  save(); updateStage(); loadPanel();
+}
+
+// 色パネルの表示を、選んだ最初のパーに合わせる
+function loadPanel(){
+  const f = selPars()[0]; if(!f) return;
+  $('picker').value = f.color;
+  $('master').value = f.master; $('masterVal').textContent = Math.round(f.master);
+  $('strobe').value = f.strobe; $('strobeVal').textContent = f.strobe;
+}
+function setColor(hex){ selPars().forEach(f => f.color = hex); $('picker').value = hex; save(); compute(); }
+function setMaster(v, list = selPars()){
+  list.forEach(f => f.master = Math.round(v));
+  $('master').value = Math.round(v); $('masterVal').textContent = Math.round(v); save(); compute();
+}
+function setStrobe(v){ selPars().forEach(f => f.strobe = v); $('strobe').value = v; $('strobeVal').textContent = v; save(); compute(); }
+
+SWATCHES.forEach((c,i) => {
+  const b = document.createElement('button'); b.style.background = c; b.title = c;
+  b.innerHTML = `<kbd>${SWATCH_KEYS[i]}</kbd>`;
+  b.onclick = () => setColor(c); $('swatches').appendChild(b);
+});
+$('picker').addEventListener('input', e => setColor(e.target.value));
+$('master').addEventListener('input', e => { stopFade(); setMaster(+e.target.value); });
+$('strobe').addEventListener('input', e => setStrobe(+e.target.value));
+document.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => pick(b.dataset.pick));
+
+// 動き
+PADS.forEach(p => {
+  const b = document.createElement('button'); b.className = 'pad'; b.dataset.eff = p.id;
+  b.style.background = p.bg;
+  b.innerHTML = `${p.name}<kbd>${p.label}</kbd><small>${p.sub}</small>`;
+  b.onclick = () => playPad(p);
+  $('pads').appendChild(b);
+});
+// パッドを押したら必ず光るように：ブラックアウトを解き、消えている・暗すぎるパーは点ける
+function playPad(p){
+  setBlackout(false);
+  if(p.id !== 'none') pars().forEach(f => { f.on = true; if(f.master < 40) f.master = 255; });
+  curScene = null; markScene();
+  setEffect(p.id);
+  if(p.speed) setSpeed(p.speed);
+  loadPanel();
+}
+function setFlash(on){
+  if(flashHold === on) return;
+  flashHold = on;
+  if(on) setBlackout(false);
+  $('btnDon').classList.toggle('active', on);
+  compute();
+}
+$('btnDon').addEventListener('pointerdown', e => { e.preventDefault(); setFlash(true); });
+['pointerup','pointerleave','pointercancel'].forEach(ev => $('btnDon').addEventListener(ev, () => setFlash(false)));
+function setEffect(k){ state.effect = k; save(); markEffect(); compute(); }
+function markEffect(){ document.querySelectorAll('[data-eff]').forEach(b => b.classList.toggle('on', b.dataset.eff===state.effect)); }
+function setSpeed(v){ state.speed = Math.round(Math.max(0.2, Math.min(8, v))*10)/10; $('speed').value = state.speed; $('speedVal').textContent = state.speed; save(); }
+$('speed').addEventListener('input', e => setSpeed(+e.target.value));
+setInterval(() => { if(state.effect !== 'none') compute(); }, 33);
+
+// ダービー
+function buildDerby(){
+  const fx = derby(), box = $('derbySliders'); box.innerHTML = '';
+  if(!fx) return;
+  fx.roles.forEach((role,i) => {
+    const d = document.createElement('div'); d.className = 'slider';
+    d.innerHTML = `<span>${ROLES[role]}（ch${fx.start+i}）</span><input type="range" min="0" max="255" value="${Math.round(fx.vals[i]||0)}"><span>${Math.round(fx.vals[i]||0)}</span>`;
+    const r = d.querySelector('input'), v = d.querySelector('span:last-child');
+    r.addEventListener('input', () => { fx.vals[i] = +r.value; v.textContent = r.value; save(); compute(); });
+    box.appendChild(d);
+  });
+  $('btnDerby').innerHTML = (fx.on ? '点灯中（押すと消灯）' : '消灯中（押すと点灯）') + '<kbd>D</kbd>';
+  $('btnDerby').classList.toggle('on', fx.on);
+}
+function toggleDerby(){ const fx = derby(); if(!fx) return; fx.on = !fx.on; save(); buildDerby(); compute(); }
+$('btnDerby').onclick = toggleDerby;
+$('btnDerbyZero').onclick = () => { const fx = derby(); fx.vals = fx.roles.map(()=>0); save(); buildDerby(); compute(); };
+
+function setBlackout(on){
+  blackout = on;
+  $('btnBlackout').classList.toggle('active', blackout);
+  $('btnBlackout').innerHTML = (blackout ? 'ブラックアウト中（押すと戻す）' : 'ブラックアウト') + '<kbd>Space</kbd>';
+  updateStage();
+}
+$('btnBlackout').onclick = () => setBlackout(!blackout);
+
+// フェード（選んだパーの明るさ）
+let fadeTimer = null;
+function stopFade(){ if(fadeTimer){ clearInterval(fadeTimer); fadeTimer = null; } }
+// 0→1 を ms かけて onStep に渡す。別ウィンドウに切り替えると止まる rAF ではなく、経過時間で進むタイマーを使う
+function animate(ms, onStep){
+  stopFade();
+  if(ms <= 0){ onStep(1); return; }
+  const t0 = performance.now();
+  fadeTimer = setInterval(() => {
+    const t = Math.min(1, (performance.now() - t0) / ms);
+    if(t >= 1) stopFade();
+    onStep(t);
+  }, 25);
+}
+function fadeTo(target){
+  const list = selPars(); if(!list.length) return;
+  const from = list.map(f => f.master);
+  animate(Math.max(0.5, +$('fadeSec').value||3) * 1000, t => {
+    list.forEach((f,i) => f.master = Math.round(from[i] + (target - from[i]) * t));
+    setMaster(list[0].master, []);
+  });
+}
+$('btnFadeIn').onclick = () => fadeTo(255);
+$('btnFadeOut').onclick = () => fadeTo(0);
+
+// ---------- シーン ----------
+function snapshot(){
+  return { fx: state.fixtures.map(f => ({ color:f.color, master:f.master, strobe:f.strobe, on:f.on, vals:f.vals ? f.vals.slice() : null })),
+           effect:state.effect, speed:state.speed };
+}
+let curScene = null;
+function playScene(sc, sec = sc.fade){
+  if(!sc) return;
+  const from = snapshot(), to = sc.snap;
+  curScene = sc.id;
+  setEffect(to.effect); setSpeed(to.speed);
+  state.fixtures.forEach((f,i) => {
+    const t = to.fx[i]; if(!t) return;
+    f.strobe = t.strobe;
+    if(t.on) f.on = true;                     // 点くものは最初に点けてから明るくする
+    if(f.vals && t.vals) f.roles.forEach((role,j) => { if(!FADE_ROLES.includes(role)) f.vals[j] = t.vals[j] ?? 0; });
+  });
+  animate((+sec||0) * 1000, k => {
+    state.fixtures.forEach((f,i) => {
+      const t = to.fx[i], s = from.fx[i]; if(!t) return;
+      if(t.color !== undefined && s.color !== undefined){
+        f.color = lerpHex(s.color, t.color, k);
+        f.master = s.master + (t.master - s.master) * k;
+        if(k === 1) f.color = t.color;
+      }
+      if(f.vals && t.vals) f.roles.forEach((role,j) => {
+        if(FADE_ROLES.includes(role)) f.vals[j] = (s.vals[j]||0) + ((t.vals[j]||0) - (s.vals[j]||0)) * k;
+      });
+      if(k === 1) f.on = t.on;
+    });
+    compute();
+    if(k === 1){ save(); loadPanel(); buildDerby(); }
+  });
+  markScene();
+}
+function buildSceneBtns(){
+  const box = $('sceneBtns'); box.innerHTML = '';
+  state.scenes.forEach((sc,i) => {
+    const b = document.createElement('button'); b.dataset.id = sc.id;
+    b.innerHTML = `${sc.name}${i<10 ? `<kbd>${(i+1)%10}</kbd>` : ''}<small>切り替え ${sc.fade}秒・${EFFECTS[sc.snap.effect]}</small>`;
+    b.onclick = () => playScene(sc);
+    box.appendChild(b);
+  });
+  markScene();
+}
+function markScene(){ document.querySelectorAll('#sceneBtns button').forEach(b => b.classList.toggle('cur', +b.dataset.id === curScene)); }
+$('btnSaveScene').onclick = () => {
+  const name = prompt('シーンの名前', 'シーン' + (state.scenes.length + 1));
+  if(name === null) return;
+  state.scenes.push({ id:state.nextId++, name:name || 'シーン', fade:Math.max(0, +$('newFade').value||0), snap:snapshot() });
+  save(); buildSceneBtns();
+};
+
+// ---------- プログラム（キュー）再生 ----------
+let cueIndex = -1, autoTimer = null, autoAt = 0;
+function clearAuto(){ clearTimeout(autoTimer); autoTimer = null; }
+function playCue(i){
+  clearAuto();
+  if(!state.cues.length) return;
+  if(i >= state.cues.length){ if(!state.loop) return; i = 0; }
+  if(i < 0) return;
+  cueIndex = i;
+  const cue = state.cues[i];
+  playScene(sceneById(cue.scene));
+  if(cue.wait > 0 && (i + 1 < state.cues.length || state.loop)){
+    autoAt = performance.now() + cue.wait*1000;
+    autoTimer = setTimeout(() => playCue(cueIndex + 1), cue.wait*1000);
+  }
+  markCue();
+}
+function go(){ playCue(cueIndex + 1); }
+function back(){ if(cueIndex > 0) playCue(cueIndex - 1); }
+function cueReset(){ clearAuto(); cueIndex = -1; markCue(); }
+$('btnGo').onclick = go;
+$('btnBack').onclick = back;
+$('btnCueReset').onclick = cueReset;
+$('loop').onchange = e => { state.loop = e.target.checked; save(); markCue(); };
+
+function cueLabel(c){ return sceneById(c.scene)?.name ?? '（シーンが消されています）'; }
+function buildCueList(){
+  const ul = $('cueList'); ul.innerHTML = '';
+  state.cues.forEach((c,i) => {
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="n">${i+1}</span><span>${cueLabel(c)}</span><span class="w">${c.wait>0 ? c.wait+'秒後に自動で次へ' : '手動'}</span>`;
+    li.onclick = () => playCue(i);
+    ul.appendChild(li);
+  });
+  $('loop').checked = state.loop;
+  markCue();
+}
+function nextIndex(){ const n = cueIndex + 1; return n < state.cues.length ? n : (state.loop && state.cues.length ? 0 : -1); }
+function markCue(){
+  const nx = nextIndex();
+  document.querySelectorAll('#cueList li').forEach((li,i) => {
+    li.classList.toggle('cur', i === cueIndex); li.classList.toggle('next', i === nx && i !== cueIndex);
+  });
+  const now = cueIndex >= 0 ? `${cueIndex+1}. ${cueLabel(state.cues[cueIndex])}` : '（まだ始めていません）';
+  const next = nx >= 0 ? `${nx+1}. ${cueLabel(state.cues[nx])}` : '（ここで終わり）';
+  const left = autoTimer ? `　あと ${Math.max(0, Math.ceil((autoAt - performance.now())/1000))} 秒で自動` : '';
+  $('cueNow').innerHTML = `いま：<b>${now}</b><br>次：${next}${left}`;
+  $('btnGo').disabled = nx < 0;
+}
+setInterval(() => { if(autoTimer) markCue(); }, 250);
+
+// ---------- キーボード操作 ----------
+const held = {};
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape'){
+    if(!$('keyHelp').hidden) $('keyHelp').hidden = true;
+    else if(settingsOpen) setSettings(false);
+    return;
+  }
+  if(settingsOpen || e.ctrlKey || e.altKey || e.metaKey) return;
+  const t = e.target;
+  if(t.matches && t.matches('input[type=text],input[type=number],input[type=color],select,textarea')) return;
+  const c = e.code;
+  let done = true;
+  if(/^Digit[0-9]$/.test(c)){
+    const n = +c.slice(5);
+    if(e.shiftKey){ const f = pars()[n-1]; if(f) togglePar(f); }
+    else playScene(state.scenes[n === 0 ? 9 : n-1]);
+  }
+  else if(e.key === '?' || c === 'Slash'){ $('keyHelp').hidden = !$('keyHelp').hidden; }
+  else if(c === 'Enter'){ if(!e.repeat) go(); }
+  else if(c === 'Backspace'){ if(!e.repeat) back(); }
+  else if(c === 'Home'){ cueReset(); }
+  else if(c === 'Space'){ if(!e.repeat) setBlackout(!blackout); }
+  else if(c === 'KeyA'){ pick(pars().every(f => f.sel) ? 'none' : 'all'); }
+  else if(SWATCH_KEYS.includes(c.slice(3)) && c.startsWith('Key')){ setColor(SWATCHES[SWATCH_KEYS.indexOf(c.slice(3))]); }
+  else if(PADS.some(p => p.key === c)){ if(!e.repeat) playPad(PADS.find(p => p.key === c)); }
+  else if(c === 'KeyL'){ setFlash(true); }
+  else if(c === 'ArrowUp' || c === 'ArrowDown'){
+    stopFade(); const f = selPars()[0];
+    if(f) setMaster(Math.max(0, Math.min(255, f.master + (c === 'ArrowUp' ? 16 : -16))));
+  }
+  else if(c === 'ArrowLeft' || c === 'ArrowRight'){ setSpeed(state.speed + (c === 'ArrowRight' ? 0.2 : -0.2)); }
+  else if(c === 'KeyF'){ if(!e.repeat) fadeTo(255); }
+  else if(c === 'KeyG'){ if(!e.repeat) fadeTo(0); }
+  else if(c === 'KeyD'){ if(!e.repeat) toggleDerby(); }
+  else if(c === 'KeyS'){ if(!held.S){ held.S = selPars().map(f => [f, f.strobe]); setStrobe(200); } }
+  else done = false;
+  if(done) e.preventDefault();
+});
+document.addEventListener('keyup', e => {
+  if(e.code === 'KeyL') setFlash(false);
+  if(e.code === 'KeyS' && held.S){ held.S.forEach(([f,v]) => f.strobe = v); delete held.S; loadPanel(); save(); compute(); }
+});
+window.addEventListener('blur', () => { setFlash(false); });
+window.addEventListener('blur', () => { if(held.S){ held.S.forEach(([f,v]) => f.strobe = v); delete held.S; compute(); } });
+$('btnKeys').onclick = () => { $('keyHelp').hidden = false; };
+$('btnKeysClose').onclick = () => { $('keyHelp').hidden = true; };
+$('keyHelp').onclick = e => { if(e.target.id === 'keyHelp') $('keyHelp').hidden = true; };
+
+// ---------- 設定パネル ----------
+function buildSetup(){
+  const box = $('fxSetup'); box.innerHTML = '';
+  state.fixtures.forEach(fx => {
+    const presets = fx.type==='par' ? PAR_PRESETS : DERBY_PRESETS;
+    const blk = document.createElement('div'); blk.className = 'fxblock';
+    blk.innerHTML = `<h3>${fx.name}</h3>
+      <div class="row">
+        <label>開始アドレス</label><input type="number" class="st" min="1" max="512" value="${fx.start}">
+        <label>ch数</label><input type="number" class="cn" min="1" max="16" value="${fx.roles.length}">
+        <label>点灯</label><input type="checkbox" class="on" ${fx.on?'checked':''}>
+      </div>
+      <div class="row">
+        <select class="ps">${Object.entries(presets).map(([k,[t]]) => `<option value="${k}">${t}</option>`).join('')}</select>
+        <button class="ap">当てはめる</button>
+      </div>
+      <div class="faders"></div>`;
+    blk.querySelector('.st').onchange = e => { fx.start = Math.max(1, Math.min(512, +e.target.value||1)); changed(); };
+    blk.querySelector('.cn').onchange = e => {
+      const n = Math.max(1, Math.min(16, +e.target.value||1));
+      while(fx.roles.length < n) fx.roles.push('none');
+      fx.roles.length = n;
+      if(fx.vals){ while(fx.vals.length < n) fx.vals.push(0); fx.vals.length = n; }
+      changed();
+    };
+    blk.querySelector('.on').onchange = e => { fx.on = e.target.checked; changed(); };
+    blk.querySelector('.ap').onclick = () => {
+      fx.roles = presets[blk.querySelector('.ps').value][1].slice();
+      if(fx.vals) fx.vals = fx.roles.map(()=>0);
+      changed();
+    };
+    const fd = blk.querySelector('.faders');
+    fx.roles.forEach((role,i) => {
+      const addr = fx.start + i;
+      const d = document.createElement('div'); d.className = 'fader'; d.dataset.addr = addr;
+      d.innerHTML = `<div class="ch">ch ${addr}</div><div class="role">${ROLES[role]}</div>
+        <input type="range" min="0" max="255" value="${frame[addr]}"><div class="val">${frame[addr]}</div>
+        <select>${Object.entries(ROLES).map(([k,v]) => `<option value="${k}" ${role===k?'selected':''}>${v}</option>`).join('')}</select>`;
+      const r = d.querySelector('input'), v = d.querySelector('.val');
+      r.addEventListener('input', () => {
+        if(fx.vals){ fx.vals[i] = +r.value; save(); }
+        frame[addr] = +r.value; v.textContent = r.value;
+      });
+      d.querySelector('select').onchange = e => { fx.roles[i] = e.target.value; changed(); };
+      fd.appendChild(d);
+    });
+    box.appendChild(blk);
+  });
+}
+function syncFaders(){
+  if(!settingsOpen) return;
+  document.querySelectorAll('#fxSetup .fader').forEach(d => {
+    const v = frame[+d.dataset.addr], r = d.querySelector('input');
+    if(document.activeElement !== r) r.value = v;
+    d.querySelector('.val').textContent = v;
+  });
+}
+function buildTable(){
+  const rows = state.fixtures.map(fx => {
+    const end = fx.start + fx.roles.length - 1;
+    return `<tr><td>${fx.name}</td><td class="num">${fx.start}</td><td class="num">${fx.start}〜${end}（${fx.roles.length}ch）</td>
+      <td class="num">A${String(fx.start).padStart(3,'0')}</td></tr>`;
+  }).join('');
+  $('addrTable').innerHTML = `<tr><th>ライト</th><th>開始アドレス</th><th>使うch</th><th>本体の表示例</th></tr>${rows}`;
+  const used = {}, warn = [];   // 重なり・はみ出しの確認
+  state.fixtures.forEach(fx => fx.roles.forEach((_,i) => {
+    const a = fx.start + i;
+    if(a > 512) warn.push(`${fx.name} が512chを超えています`);
+    else if(used[a]) warn.push(`ch${a} が ${used[a]} と ${fx.name} で重なっています`);
+    else used[a] = fx.name;
+  }));
+  $('addrWarn').textContent = [...new Set(warn)].join('／');
+}
+function changed(){
+  frame.fill(0, 1); save();
+  buildSetup(); buildTable(); compute();
+}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function move(arr, i, d){ const j = i + d; if(j < 0 || j >= arr.length) return; [arr[i], arr[j]] = [arr[j], arr[i]]; }
+
+function buildSceneTable(){
+  const tb = $('sceneTable');
+  tb.innerHTML = '<tr><th>キー</th><th>名前</th><th>切替秒</th><th></th></tr>';
+  state.scenes.forEach((sc,i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td class="num">${i<10 ? (i+1)%10 : ''}</td>
+      <td><input type="text" value="${esc(sc.name)}"></td>
+      <td><input type="number" min="0" max="30" step="0.5" value="${sc.fade}"></td>
+      <td style="white-space:nowrap">
+        <button class="small" data-a="play">試す</button>
+        <button class="small" data-a="over">上書き</button>
+        <button class="small" data-a="up">↑</button><button class="small" data-a="down">↓</button>
+        <button class="small" data-a="del">削除</button></td>`;
+    tr.querySelector('input[type=text]').onchange = e => { sc.name = e.target.value || 'シーン'; save(); buildCueTable(); };
+    tr.querySelector('input[type=number]').onchange = e => { sc.fade = Math.max(0, +e.target.value||0); save(); };
+    tr.querySelectorAll('button').forEach(b => b.onclick = () => {
+      const a = b.dataset.a;
+      if(a === 'play') playScene(sc);
+      if(a === 'over'){ if(!confirm(`「${sc.name}」を今の光り方で上書きします。`)) return; sc.snap = snapshot(); }
+      if(a === 'up') move(state.scenes, i, -1);
+      if(a === 'down') move(state.scenes, i, 1);
+      if(a === 'del'){
+        const used = state.cues.filter(c => c.scene === sc.id).length;
+        if(!confirm(`「${sc.name}」を削除します。` + (used ? `プログラムの ${used} か所からも外れます。` : ''))) return;
+        state.scenes.splice(i, 1); state.cues = state.cues.filter(c => c.scene !== sc.id);
+      }
+      save(); buildSceneTable(); buildCueTable();
+    });
+    tb.appendChild(tr);
+  });
+}
+function buildCueTable(){
+  const tb = $('cueTable');
+  tb.innerHTML = '<tr><th>#</th><th>シーン</th><th>次へ（0＝手動）</th><th></th></tr>';
+  const opts = id => state.scenes.map(s => `<option value="${s.id}" ${s.id===id?'selected':''}>${esc(s.name)}</option>`).join('');
+  state.cues.forEach((c,i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td class="num">${i+1}</td><td><select>${opts(c.scene)}</select></td>
+      <td><input type="number" min="0" max="600" step="0.5" value="${c.wait}"> 秒</td>
+      <td style="white-space:nowrap"><button class="small" data-a="up">↑</button><button class="small" data-a="down">↓</button>
+        <button class="small" data-a="del">削除</button></td>`;
+    tr.querySelector('select').onchange = e => { c.scene = +e.target.value; save(); };
+    tr.querySelector('input').onchange = e => { c.wait = Math.max(0, +e.target.value||0); save(); };
+    tr.querySelectorAll('button').forEach(b => b.onclick = () => {
+      const a = b.dataset.a;
+      if(a === 'up') move(state.cues, i, -1);
+      if(a === 'down') move(state.cues, i, 1);
+      if(a === 'del') state.cues.splice(i, 1);
+      save(); buildCueTable();
+    });
+    tb.appendChild(tr);
+  });
+}
+$('btnAddCue').onclick = () => {
+  if(!state.scenes.length){ alert('先にシーンを保存してください。'); return; }
+  const last = state.cues[state.cues.length-1];
+  state.cues.push({ scene: last ? last.scene : state.scenes[0].id, wait:0 }); save(); buildCueTable();
+};
+$('btnZero').onclick = () => {
+  stopFade(); setEffect('none');
+  frame.fill(0, 1);
+  const d = derby(); if(d) d.vals = d.roles.map(()=>0);
+  save(); syncFaders(); updateStage();
+};
+$('btnReset').onclick = () => {
+  if(!confirm('ライトのアドレスと役割を最初の設定（パー1〜4＝ch1/11/21/31、ダービー＝ch41）に戻します。シーンとプログラムは残ります。')) return;
+  state.fixtures = defaultFixtures(); changed();
+};
+
+// バックアップ
+$('btnExport').onclick = () => {
+  const blob = new Blob([JSON.stringify(state, null, 1)], { type:'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = `dmx-stage_${new Date().toISOString().slice(0,10)}.json`; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+$('btnImport').onclick = () => $('importFile').click();
+$('importFile').onchange = async e => {
+  const file = e.target.files[0]; e.target.value = ''; if(!file) return;
+  try{
+    const s = JSON.parse(await file.text());
+    if(!Array.isArray(s.fixtures)) throw new Error('このアプリの設定ファイルではありません');
+    if(!confirm('今の設定・シーン・プログラムを、ファイルの内容に置き換えます。')) return;
+    state = migrate(s); cueReset(); changed(); buildSceneTable(); buildCueTable();
+  }catch(err){ alert('読み込めませんでした：' + err.message); }
+};
+
+// ---------- DMX送信（Open DMX 互換：FTDI FT232R） ----------
+// 250kbps・8bit・パリティなし・ストップ2bit。ブレーク → スタートコード0 → 512ch を繰り返し送る。
+let port = null, writer = null, running = false;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+async function connect(){
+  $('errBox').textContent = '';
+  if(!('serial' in navigator)){
+    alert('このブラウザは Web Serial に対応していません。Chrome か Edge で開いてください。');
+    return;
+  }
+  try{
+    port = await navigator.serial.requestPort({ filters:[{ usbVendorId:0x0403 }] });
+    await port.open({ baudRate:250000, dataBits:8, stopBits:2, parity:'none', flowControl:'none' });
+    writer = port.writable.getWriter();
+    running = true; setStatus(true, '接続中・送信しています');
+    sendLoop();
+  }catch(e){
+    if(e.name !== 'NotFoundError') alert('接続できませんでした：' + e.message + '（他のアプリがCOMポートを使っていないか確認してください）');
+    await disconnect(true);
+  }
+}
+
+async function sendLoop(){
+  let frames = 0, t0 = performance.now();
+  while(running){
+    try{
+      await port.setSignals({ break:true });
+      await sleep(1);
+      await port.setSignals({ break:false });
+      await writer.write((blackout ? zeroFrame : frame).slice());
+      await sleep(25);   // 513バイト×44µs ≒ 23ms。送り終わる前に次のブレークを入れない
+      frames++;
+      const now = performance.now();
+      if(now - t0 > 1000){ setStatus(true, `接続中・送信 ${Math.round(frames*1000/(now-t0))} 回/秒`); frames = 0; t0 = now; }
+    }catch(e){
+      setStatus(false, '送信が止まりました（USBが抜けた可能性があります）：' + e.message);
+      await disconnect(true, true); break;
+    }
+  }
+}
+
+async function disconnect(silent, keepText){
+  running = false;
+  await sleep(40);
+  try{ if(writer){ writer.releaseLock(); } }catch(e){}
+  try{ if(port){ await port.close(); } }catch(e){}
+  writer = null; port = null;
+  if(!keepText) setStatus(false, '未接続（画面の色だけ動きます）');
+  else { $('btnConnect').disabled = false; $('btnDisconnect').disabled = true; }
+}
+
+function setStatus(on, text){
+  $('dot').classList.toggle('on', on); $('statusText').textContent = text;
+  $('btnConnect').disabled = on; $('btnDisconnect').disabled = !on;
+}
+$('btnConnect').onclick = connect;
+$('btnDisconnect').onclick = () => disconnect();
+if('serial' in navigator) navigator.serial.addEventListener('disconnect', e => { if(e.target === port) disconnect(true); });
+
+// ---------- 起動 ----------
+setSpeed(state.speed); markEffect(); compute(); setSettings(false);
+</script>
+</body>
+</html>
