@@ -303,7 +303,7 @@ const SWATCHES = ['#ff0000','#ff6a00','#ffd000','#00ff00','#00ffd0','#00a0ff','#
 const SWATCH_KEYS = ['Q','W','E','R','T','Y','U','I','O','P'];
 // 演出で使う派手な色（白は入れない）。色が変わる演出はこの順に回る
 const PAL = ['#ff0000','#ffd000','#00ff00','#00a0ff','#a000ff','#ff00a0'];
-// 演出パッド。speed は押したときの「はやさ」（1秒に何歩進むか）
+// 演出パッド。speed は目安の「はやさ」（1秒に何歩進むか）。押してもはやさは変えず、いまの値を引き継ぐ
 const PADS = [
   { id:'none',    name:'止める',         sub:'動きを止めて元の色に',   key:'KeyZ',   label:'Z', speed:null, bg:'#3a4050' },
   { id:'rtl',     name:'右から左へ',     sub:'1周ごとに色が変わる',     key:'KeyX',   label:'X', speed:3,   bg:'linear-gradient(270deg,#ff0000,#ffd000 50%,#00a0ff)' },
@@ -566,8 +566,7 @@ function playPad(p){
   setBlackout(false);
   if(p.id !== 'none') pars().forEach(f => { f.on = true; if(f.master < 40) f.master = 255; });
   curScene = null; markScene();
-  setEffect(p.id);
-  if(p.speed) setSpeed(p.speed);
+  setEffect(p.id);   // はやさは変えない（いま設定している値のまま切り替える）
   loadPanel();
 }
 function setFlash(on){
